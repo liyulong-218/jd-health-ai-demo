@@ -54,53 +54,93 @@ with st.sidebar:
         st.rerun()
 
 # --- 上部：结构化健康档案 (专业版分诊表单) ---
-st.subheader("📋 预问诊表单 (SOAP 结构化采信)")
+st.subheader("📋 预问诊分诊台")
+st.markdown("<span style='color:gray; font-size:14px;'>请尽可能详细填写，AI 医生将根据这些信息为您提供更精准的建议。带 ⚠️ 为重要医疗安全项。</span>", unsafe_allow_html=True)
+
 with st.form("profile_form", border=True):
-    # 模块 1：人口统计学与基础特征
-    st.markdown("**1. 基础信息**")
-    col1, col2, col3, col4 = st.columns(4)
+    # 模块 1：人口统计学
+    st.markdown("**👤 1. 基础信息**")
+    col1, col2, col3 = st.columns(3)
     with col1:
         name = st.text_input("患者姓名", "张先生")
     with col2:
         gender = st.selectbox("性别", ["男", "女"])
     with col3:
-        age = st.number_input("年龄", 10, 90, 55)
-    with col4:
-        bmi = st.number_input("BMI 指数 (选填)", 10.0, 40.0, 24.5, step=0.1)
+        age = st.number_input("年龄", 1, 120, 55)
 
-    # 模块 2：既往史与生命体征
-    st.markdown("**2. 既往史与体征指标**")
-    col_hist1, col_hist2 = st.columns(2)
-    with col_hist1:
-        diseases = st.multiselect("确诊慢性病 (可多选)",
-                                  ["无", "高血压", "2型糖尿病", "高脂血症", "骨关节炎", "冠心病"])
-        allergies = st.text_input("过敏史 ⚠️", "无已知药物过敏")  # 医疗场景极其重要的字段
-    with col_hist2:
-        st.write("近期关键指标：")
-        c1, c2 = st.columns(2)
-        with c1:
-            bp = st.text_input("血压 (mmHg)", placeholder="例如: 140/90" if "高血压" in diseases else "未测量")
-        with c2:
-            sugar = st.text_input("空腹血糖 (mmol/L)", placeholder="例如: 7.2" if "2型糖尿病" in diseases else "未测量")
+    st.divider() # 添加分割线让视觉更清爽
 
-    # 模块 3：主诉与现病史
-    st.markdown("**3. 本次就诊诉求**")
-    symptoms = st.text_area("主要症状 (请描述症状及持续时间)",
-                            "近期经常头晕，伴随后颈部僵硬，持续约一周。想咨询日常饮食和运动建议。")
+    # 模块 2：既往史与过敏史 (高优安全项)
+    st.markdown("**🏥 2. 既往史与过敏史**")
+    diseases = st.multiselect(
+        "确诊慢性病 (可多选)", 
+        ["无", "高血压", "2型糖尿病", "高脂血症", "冠心病", "脑卒中", "骨关节炎", "哮喘"],
+        default=["无"]
+    )
+    
+    # 过敏史采用：半结构化设计 (常见多选 + 兜底手填)
+    col_alg1, col_alg2 = st.columns([1, 1])
+    with col_alg1:
+        allergies_common = st.multiselect(
+            "常见过敏源 ⚠️", 
+            ["无已知过敏", "青霉素类", "头孢类", "磺胺类药物", "花粉", "尘螨", "海鲜"], 
+            default=["无已知过敏"],
+            help="选择已知的过敏源，这关系到 AI 的用药和治疗建议安全。"
+        )
+    with col_alg2:
+        allergies_other = st.text_input("其他过敏源补充", placeholder="若左侧未包含，请在此手填填写，例如：芒果")
 
-    submitted = st.form_submit_button("🚀 生成结构化档案并呼叫 AI 医生", type="primary")
+    st.divider()
 
-# --- 处理表单提交 ---
+    # 模块 3：体征指标 (弱化强制性，增加引导)
+    st.markdown("**📊 3. 近期体征指标 (选填)**")
+    st.caption("💡 提示：如果不清楚具体数值，可以直接留空，不影响问诊。")
+    col_bp, col_bs = st.columns(2)
+    with col_bp:
+        # 使用 help 增加提示，placeholder 提供占位符示例
+        bp = st.text_input("血压数值 (mmHg)", placeholder="例: 120/80，不清楚可留空", help="正常成年人参考：收缩压 90-139，舒张压 60-89")
+    with col_bs:
+        sugar = st.text_input("空腹血糖 (mmol/L)", placeholder="例: 5.5，不清楚可留空", help="正常参考：3.9 - 6.1 mmol/L")
+
+    st.divider()
+
+    # 模块 4：主诉
+    st.markdown("**🗣️ 4. 本次就诊诉求**")
+    symptoms = st.text_area(
+        "详细症状描述", 
+        value="近期经常头晕，伴随后颈部僵硬，持续约一周。想咨询日常饮食和运动建议。",
+        help="请尽量描述：哪里不舒服？持续了多久？有没有什么诱因？",
+        height=100
+    )
+    
+    # 按钮居中处理并增加视觉重要性
+    submit_col1, submit_col2, submit_col3 = st.columns([1, 2, 1])
+    with submit_col2:
+        submitted = st.form_submit_button("🚀 生成结构化档案并呼叫 AI 医生", use_container_width=True)
+
+# --- 处理表单提交的文本拼接逻辑更新 ---
 if submitted:
     st.session_state.profile_submitted = True
+    
+    # 处理过敏史的文本拼接
+    alg_list = [a for a in allergies_common if a != "无已知过敏"]
+    if allergies_other.strip():
+        alg_list.append(allergies_other.strip())
+    final_allergy = "、".join(alg_list) if alg_list else "无已知药物及食物过敏"
 
     # 构建更符合医学语境的档案摘要
-    profile_text = f"【基本信息】{name}，{gender}，{age}岁，BMI {bmi}。\n"
-    profile_text += f"【既往史】{', '.join(diseases) if diseases else '无特殊'}；【过敏史】{allergies}。\n"
-    if bp != "未测量" and bp != "":
+    profile_text = f"【基本信息】{name}，{gender}，{age}岁。\n"
+    profile_text += f"【既往史】{', '.join(diseases) if diseases and '无' not in diseases else '体健，无特殊'}。\n"
+    profile_text += f"【过敏史】{final_allergy}。\n"
+    
+    if bp.strip():
         profile_text += f"【近期血压】{bp} mmHg；"
-    if sugar != "未测量" and sugar != "":
+    else:
+        profile_text += f"【近期血压】患者表示不清楚；"
+        
+    if sugar.strip():
         profile_text += f"【空腹血糖】{sugar} mmol/L；"
+        
     profile_text += f"\n【本次主诉】{symptoms}"
 
     st.session_state.profile_text = profile_text
