@@ -147,7 +147,7 @@ if current_len > st.session_state.last_processed_index and current_len > 0:
             else:
                 placeholder.markdown("💬 **医生正在结合您的情况思考回复...**")
 
-            headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
+            headers = {"Authorization": f"Bearer {DIFY_API_KEY}", "Content-Type": "application/json"}
 
             # 【核心修复区】：正确分离 inputs 和 conversation_id
             inputs_data = {
